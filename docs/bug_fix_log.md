@@ -1,5 +1,69 @@
 # Bug Fix Log
 
+## [2026-02-01] v1.0.3 - Windows Hook Execution Failure
+
+### Problem Description
+Users reported two issues on other Windows machines:
+1. `npx claude-code-notify-lite logs` shows "unknown command 'logs'"
+2. Hook execution still fails with "系统找不到指定的路径" (path not found)
+
+### Root Cause Analysis
+
+**Issue 1: Unknown command 'logs'**
+- package.json bin field only had `ccnotify`, not `claude-code-notify-lite`
+- When running `npx claude-code-notify-lite`, npx couldn't map to the CLI correctly
+
+**Issue 2: Path not found**
+- npx command depends on PATH environment variables
+- Claude Code hooks execute in a clean environment without full user PATH
+- nvm-windows and other version managers add paths dynamically at shell startup
+- These paths are not available in hook execution context
+
+### Fix
+
+**Fix 1: Added package name as bin entry**
+```json
+"bin": {
+  "claude-code-notify-lite": "./bin/cli.js",
+  "ccnotify": "./bin/cli.js"
+}
+```
+
+**Fix 2: Use absolute paths instead of npx**
+```javascript
+function getHookCommand() {
+  const nodePath = process.execPath;  // User's node.exe
+  const cliPath = path.resolve(__dirname, '..', 'bin', 'cli.js');
+  return `"${nodePath}" "${cliPath}" run`;
+}
+```
+
+**Fix 3: Handle npx cache scenario**
+When installed via npx, files are in temporary cache that may be cleared.
+Added logic to detect npx cache and copy necessary files to user's config directory:
+```javascript
+if (isNpxCache(originalCliPath)) {
+  cliPath = copyCliToConfigDir();  // Copy to %APPDATA%/claude-code-notify-lite/
+}
+```
+
+### Files Changed
+- `package.json` (version 1.0.3, added bin entry)
+- `src/installer.js` (absolute path + npx cache handling)
+- `README.md` (troubleshooting guide)
+
+### Verification
+```bash
+# Clear old cache and reinstall
+npx ccnotify@latest uninstall
+npx ccnotify@latest install
+
+# Test notification
+npx ccnotify@latest test
+```
+
+---
+
 ## [2026-02-01] v1.0.2 - Path Not Found Error
 
 ### Problem Description

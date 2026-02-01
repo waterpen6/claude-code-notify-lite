@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { getClaudeConfigDir, getConfigDir, ensureConfigDir, saveConfig, getDefaultConfig } = require('./config');
 const logger = require('./logger');
 
@@ -7,11 +8,92 @@ function getClaudeSettingsPath() {
   return path.join(getClaudeConfigDir(), 'settings.json');
 }
 
+function isNpxCache(filePath) {
+  const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
+  return normalizedPath.includes('npm-cache/_npx') ||
+         normalizedPath.includes('npm-cache\\_npx') ||
+         normalizedPath.includes('.npm/_npx');
+}
+
+function copyCliToConfigDir() {
+  const configDir = getConfigDir();
+
+  ensureConfigDir();
+
+  const srcDir = path.join(configDir, 'src');
+  if (!fs.existsSync(srcDir)) {
+    fs.mkdirSync(srcDir, { recursive: true });
+  }
+
+  const filesToCopy = [
+    { src: path.resolve(__dirname, 'index.js'), dest: path.join(srcDir, 'index.js') },
+    { src: path.resolve(__dirname, 'notifier.js'), dest: path.join(srcDir, 'notifier.js') },
+    { src: path.resolve(__dirname, 'audio.js'), dest: path.join(srcDir, 'audio.js') },
+    { src: path.resolve(__dirname, 'config.js'), dest: path.join(srcDir, 'config.js') },
+    { src: path.resolve(__dirname, 'logger.js'), dest: path.join(srcDir, 'logger.js') }
+  ];
+
+  for (const file of filesToCopy) {
+    if (fs.existsSync(file.src)) {
+      fs.copyFileSync(file.src, file.dest);
+      logger.debug('Copied file', { src: file.src, dest: file.dest });
+    }
+  }
+
+  const assetsDir = path.resolve(__dirname, '..', 'assets');
+  const targetAssetsDir = path.join(configDir, 'assets');
+  if (!fs.existsSync(targetAssetsDir)) {
+    fs.mkdirSync(targetAssetsDir, { recursive: true });
+  }
+
+  const soundsDir = path.join(assetsDir, 'sounds');
+  const targetSoundsDir = path.join(targetAssetsDir, 'sounds');
+  if (fs.existsSync(soundsDir)) {
+    if (!fs.existsSync(targetSoundsDir)) {
+      fs.mkdirSync(targetSoundsDir, { recursive: true });
+    }
+    const sounds = fs.readdirSync(soundsDir);
+    for (const sound of sounds) {
+      fs.copyFileSync(path.join(soundsDir, sound), path.join(targetSoundsDir, sound));
+    }
+  }
+
+  const runScript = `const path = require('path');
+const srcDir = path.join(__dirname, 'src');
+const { run } = require(path.join(srcDir, 'index.js'));
+run().catch(err => {
+  console.error('Notification error:', err.message);
+  process.exit(1);
+});
+`;
+  const runScriptPath = path.join(configDir, 'run.js');
+  fs.writeFileSync(runScriptPath, runScript, 'utf8');
+
+  logger.info('Copied CLI files to config directory', { configDir });
+  return runScriptPath;
+}
+
 function getHookCommand() {
   logger.info('Generating hook command');
 
-  const command = 'npx --yes claude-code-notify-lite run';
-  logger.info('Using npx command', { command });
+  const nodePath = process.execPath;
+  const originalCliPath = path.resolve(__dirname, '..', 'bin', 'cli.js');
+
+  let cliPath = originalCliPath;
+  let useLocalCopy = false;
+  let command;
+
+  if (isNpxCache(originalCliPath)) {
+    logger.warn('Running from npx cache, copying files to config directory');
+    console.log('  [INFO] Detected npx execution, copying files for persistence...');
+    cliPath = copyCliToConfigDir();
+    useLocalCopy = true;
+    command = `"${nodePath}" "${cliPath}"`;
+  } else {
+    command = `"${nodePath}" "${cliPath}" run`;
+  }
+
+  logger.info('Using absolute path command', { command, nodePath, cliPath, useLocalCopy });
   return command;
 }
 
@@ -131,7 +213,7 @@ function install(options = {}) {
     console.log('  [OK] Configured Claude Code hooks');
 
     console.log('\nInstallation complete!');
-    console.log('Run "npx claude-code-notify-lite test" to verify.\n');
+    console.log('Run "ccnotify test" or "npx ccnotify test" to verify.\n');
 
     logger.info('Install completed successfully');
     return { success: true };

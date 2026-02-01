@@ -120,18 +120,53 @@ Claude Code Notify Lite integrates with Claude Code's hook system:
 
 ## Troubleshooting
 
+### Debug Logs
+
+View debug logs to diagnose issues:
+
+```bash
+# Show recent logs
+ccnotify logs
+
+# Show more lines
+ccnotify logs -n 100
+
+# Clear logs
+ccnotify logs -c
+```
+
+Log file locations:
+- **Windows:** `%APPDATA%\claude-code-notify-lite\debug.log`
+- **macOS:** `~/Library/Logs/claude-code-notify-lite/debug.log`
+- **Linux:** `~/.local/state/claude-code-notify-lite/debug.log`
+
 ### Command 'ccnotify' not found
 
 After npm global install, if `ccnotify` is not recognized:
 
 ```bash
-# Use npx instead
+# Use npx instead (short form)
+npx ccnotify install
+
+# Or use full package name
 npx claude-code-notify-lite install
 
 # Or find npm global bin location
 npm root -g
 # Then add the parent bin directory to PATH
 ```
+
+### Hook error: "path not found"
+
+If you see garbled text like "ϵͳ找不到指定的路径" in hook errors:
+
+```bash
+# Reinstall to update hook command with absolute paths
+npx ccnotify uninstall
+npx ccnotify install
+```
+
+The latest version uses absolute paths (node.exe + cli.js) instead of npx, which resolves PATH issues in hook execution environment.
 
 ### Notification not showing
 

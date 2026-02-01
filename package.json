@@ -1,9 +1,10 @@
 {
   "name": "claude-code-notify-lite",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Task completion notifications for Claude Code - Cross-platform, lightweight, and easy to use",
   "main": "src/index.js",
   "bin": {
+    "claude-code-notify-lite": "./bin/cli.js",
     "ccnotify": "./bin/cli.js"
   },
   "scripts": {
