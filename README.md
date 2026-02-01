@@ -24,6 +24,18 @@ npm install -g claude-code-notify-lite
 ccnotify install
 ```
 
+If `ccnotify` command is not found, use npx instead:
+
+```bash
+npx claude-code-notify-lite install
+```
+
+Or add npm global bin to your PATH:
+
+**Windows:** Add `%APPDATA%\npm` to your PATH environment variable.
+
+**macOS/Linux:** Add `$(npm root -g)/../bin` to your PATH.
+
 ### Using install script
 
 **macOS / Linux:**
@@ -107,6 +119,19 @@ Claude Code Notify Lite integrates with Claude Code's hook system:
 3. The hook sends a system notification and plays a sound
 
 ## Troubleshooting
+
+### Command 'ccnotify' not found
+
+After npm global install, if `ccnotify` is not recognized:
+
+```bash
+# Use npx instead
+npx claude-code-notify-lite install
+
+# Or find npm global bin location
+npm root -g
+# Then add the parent bin directory to PATH
+```
 
 ### Notification not showing
 

@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const { exec } = require('child_process');
 const { loadConfig, getSoundsDir } = require('./config');
+const logger = require('./logger');
 
 const BUILT_IN_SOUNDS = {
   default: 'default.mp3'
@@ -33,10 +34,13 @@ function getSoundPath(soundName) {
 
 function playWithAfplay(soundPath, volume) {
   return new Promise((resolve) => {
+    logger.info('Playing sound with afplay', { soundPath, volume });
     const volumeArg = volume < 100 ? `-v ${volume / 100}` : '';
     exec(`afplay ${volumeArg} "${soundPath}"`, (err) => {
-      if (err && process.env.DEBUG) {
-        console.warn('afplay error:', err.message);
+      if (err) {
+        logger.error('afplay error', err);
+      } else {
+        logger.info('afplay completed');
       }
       resolve();
     });
@@ -45,6 +49,7 @@ function playWithAfplay(soundPath, volume) {
 
 function playWithPowershell(soundPath) {
   return new Promise((resolve) => {
+    logger.info('Playing sound with PowerShell', { soundPath });
     const escapedPath = soundPath.replace(/\\/g, '\\\\');
     const psScript = [
       'Add-Type -AssemblyName PresentationCore',
@@ -55,22 +60,27 @@ function playWithPowershell(soundPath) {
       'Start-Sleep -Seconds 3'
     ].join('; ');
 
-    exec(`powershell -NoProfile -Command "${psScript}"`, (err) => {
-      if (err && process.env.DEBUG) {
-        console.warn('PowerShell audio error:', err.message);
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
+      { encoding: 'utf8', windowsHide: true },
+      (err) => {
+        if (err) {
+          logger.error('PowerShell audio error', err);
+        } else {
+          logger.info('PowerShell audio completed');
+        }
+        resolve();
       }
-      resolve();
-    });
+    );
   });
 }
 
 function playWithLinuxPlayer(soundPath) {
   return new Promise((resolve) => {
+    logger.info('Playing sound on Linux', { soundPath });
+
     const tryPlayers = (players) => {
       if (players.length === 0) {
-        if (process.env.DEBUG) {
-          console.warn('No audio player available on Linux');
-        }
+        logger.warn('No audio player available on Linux');
         resolve();
         return;
       }
@@ -100,10 +110,14 @@ function playWithLinuxPlayer(soundPath) {
             cmd = `${player} "${soundPath}"`;
         }
 
+        logger.debug('Using player', { player, cmd });
+
         exec(cmd, (err) => {
           if (err) {
+            logger.warn(`${player} failed, trying next`, err);
             tryPlayers(rest);
           } else {
+            logger.info(`${player} completed successfully`);
             resolve();
           }
         });
@@ -115,23 +129,27 @@ function playWithLinuxPlayer(soundPath) {
 }
 
 function playSound(soundFile) {
+  logger.debug('playSound called', { soundFile });
+
   const config = loadConfig();
 
   if (!config.sound || !config.sound.enabled) {
+    logger.info('Sound disabled in config');
     return Promise.resolve();
   }
 
   const soundPath = getSoundPath(soundFile || config.sound.file);
+  logger.info('Sound path resolved', { soundPath });
 
   if (!fs.existsSync(soundPath)) {
-    if (process.env.DEBUG) {
-      console.warn(`Sound file not found: ${soundPath}`);
-    }
+    logger.error('Sound file not found', { soundPath });
     return Promise.resolve();
   }
 
   const platform = os.platform();
   const volume = config.sound.volume || 80;
+
+  logger.info('Playing sound', { platform, volume });
 
   if (platform === 'darwin') {
     return playWithAfplay(soundPath, volume);
@@ -159,9 +177,7 @@ function listSounds() {
         }
       });
     } catch (err) {
-      if (process.env.DEBUG) {
-        console.warn('Failed to read sounds directory:', err.message);
-      }
+      logger.error('Failed to read sounds directory', err);
     }
   }
 

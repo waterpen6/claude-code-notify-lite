@@ -24,6 +24,16 @@ npm install -g claude-code-notify-lite
 ccnotify install
 ```
 
+如果 `ccnotify` 命令找不到，可以使用 npx：
+
+```bash
+npx claude-code-notify-lite install
+```
+
+或将 npm 全局目录添加到 PATH：
+
+**Windows:** 将 `%APPDATA%\npm` 添加到系统 PATH 环境变量
+
 ### 使用安装脚本
 
 **macOS / Linux:**
@@ -117,6 +127,19 @@ Claude Code Notify Lite 通过 Claude Code 的 Hook 系统实现：
 3. Hook 发送系统通知并播放提示音
 
 ## 常见问题
+
+### ccnotify 命令找不到
+
+npm 全局安装后，如果 `ccnotify` 命令无法识别：
+
+```bash
+# 使用 npx 替代
+npx claude-code-notify-lite install
+
+# 或查找 npm 全局目录
+npm root -g
+# 将上级 bin 目录添加到 PATH
+```
 
 ### 通知不显示
 

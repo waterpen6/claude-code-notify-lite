@@ -2,7 +2,14 @@
 
 const { program } = require('commander');
 const chalk = require('chalk');
+const fs = require('fs');
 const pkg = require('../package.json');
+
+function formatTime() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
 
 program
   .name('ccnotify')
@@ -45,6 +52,9 @@ program
 
     const { notify } = require('../src/notifier');
     const { playSound } = require('../src/audio');
+    const logger = require('../src/logger');
+
+    logger.info('Test started');
 
     try {
       await Promise.all([
@@ -52,7 +62,7 @@ program
           title: 'Claude Code Notify',
           message: 'Test notification successful!',
           workDir: process.cwd(),
-          time: new Date().toLocaleString()
+          time: formatTime()
         }),
         playSound()
       ]);
@@ -60,9 +70,13 @@ program
       console.log(chalk.green('  [OK] Notification sent'));
       console.log(chalk.green('  [OK] Sound played'));
       console.log(chalk.green('\nTest completed successfully!\n'));
+      logger.info('Test completed successfully');
     } catch (err) {
       console.log(chalk.red(`  [ERROR] ${err.message}`));
+      logger.error('Test failed', err);
     }
+
+    console.log(chalk.gray(`Log file: ${logger.getLogPath()}\n`));
   });
 
 program
@@ -70,6 +84,7 @@ program
   .description('Check installation status')
   .action(() => {
     const { checkInstallation } = require('../src/installer');
+    const logger = require('../src/logger');
     const status = checkInstallation();
 
     console.log(chalk.blue('Installation Status:\n'));
@@ -83,8 +98,10 @@ program
     console.log(`  Hook configured: ${status.hasHook ? chalk.green('Yes') : chalk.red('No')}`);
     console.log(`  Config exists: ${status.hasConfig ? chalk.green('Yes') : chalk.red('No')}`);
 
+    console.log(chalk.gray(`\n  Log file: ${logger.getLogPath()}`));
+
     if (!status.installed) {
-      console.log(chalk.yellow('\nRun "ccnotify install" to complete installation.\n'));
+      console.log(chalk.yellow('\nRun "npx claude-code-notify-lite install" to complete installation.\n'));
     }
   });
 
@@ -173,6 +190,66 @@ program
       console.log(`  - ${sound}`);
     });
     console.log('');
+  });
+
+program
+  .command('logs')
+  .description('Show debug logs')
+  .option('-n, --lines <number>', 'Number of lines to show', '50')
+  .option('-f, --follow', 'Follow log file (like tail -f)')
+  .option('-c, --clear', 'Clear log file')
+  .action((options) => {
+    const logger = require('../src/logger');
+    const logPath = logger.getLogPath();
+
+    if (options.clear) {
+      try {
+        if (fs.existsSync(logPath)) {
+          fs.unlinkSync(logPath);
+          console.log(chalk.green('Log file cleared.\n'));
+        } else {
+          console.log(chalk.yellow('Log file does not exist.\n'));
+        }
+      } catch (err) {
+        console.log(chalk.red(`Failed to clear log: ${err.message}\n`));
+      }
+      return;
+    }
+
+    console.log(chalk.blue(`Log file: ${logPath}\n`));
+
+    if (!fs.existsSync(logPath)) {
+      console.log(chalk.yellow('No logs yet.\n'));
+      return;
+    }
+
+    try {
+      const content = fs.readFileSync(logPath, 'utf8');
+      const lines = content.trim().split('\n');
+      const numLines = parseInt(options.lines, 10) || 50;
+      const lastLines = lines.slice(-numLines);
+
+      if (lastLines.length === 0) {
+        console.log(chalk.yellow('Log file is empty.\n'));
+        return;
+      }
+
+      console.log(chalk.gray('--- Recent logs ---\n'));
+      lastLines.forEach(line => {
+        if (line.includes('[ERROR]')) {
+          console.log(chalk.red(line));
+        } else if (line.includes('[WARN]')) {
+          console.log(chalk.yellow(line));
+        } else if (line.includes('[INFO]')) {
+          console.log(chalk.white(line));
+        } else {
+          console.log(chalk.gray(line));
+        }
+      });
+      console.log('');
+    } catch (err) {
+      console.log(chalk.red(`Failed to read log: ${err.message}\n`));
+    }
   });
 
 program.parse();
