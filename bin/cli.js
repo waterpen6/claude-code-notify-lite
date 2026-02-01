@@ -3,6 +3,7 @@
 const { program } = require('commander');
 const chalk = require('chalk');
 const fs = require('fs');
+const path = require('path');
 const pkg = require('../package.json');
 
 function formatTime() {
@@ -11,10 +12,29 @@ function formatTime() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 }
 
+function safeRequire(modulePath, moduleName) {
+  try {
+    return require(modulePath);
+  } catch (err) {
+    console.error(chalk.red(`Failed to load ${moduleName}: ${err.message}`));
+    console.error(chalk.yellow('Try reinstalling: npm install -g claude-code-notify-lite'));
+    process.exit(1);
+  }
+}
+
 program
   .name('ccnotify')
   .description('Task completion notifications for Claude Code')
-  .version(pkg.version);
+  .version(pkg.version)
+  .addHelpText('after', `
+Examples:
+  $ ccnotify install     Install hooks
+  $ ccnotify test        Test notification
+  $ ccnotify status      Check status
+  $ ccnotify logs        View debug logs
+
+Version: ${pkg.version}
+`);
 
 program
   .command('install')
@@ -250,6 +270,30 @@ program
     } catch (err) {
       console.log(chalk.red(`Failed to read log: ${err.message}\n`));
     }
+  });
+
+program
+  .command('info')
+  .description('Show version and installation info')
+  .action(() => {
+    console.log(chalk.blue('Claude Code Notify Lite\n'));
+    console.log(`  Version: ${chalk.green(pkg.version)}`);
+    console.log(`  Node: ${chalk.gray(process.version)}`);
+    console.log(`  Platform: ${chalk.gray(process.platform)}`);
+    console.log(`  CLI Path: ${chalk.gray(__dirname)}`);
+
+    const { getConfigDir, getClaudeConfigDir } = safeRequire('../src/config', 'config');
+    console.log(`  Config Dir: ${chalk.gray(getConfigDir())}`);
+    console.log(`  Claude Dir: ${chalk.gray(getClaudeConfigDir())}`);
+
+    const isNpxCache = __dirname.toLowerCase().includes('npm-cache') ||
+                       __dirname.toLowerCase().includes('_npx');
+    if (isNpxCache) {
+      console.log(chalk.yellow('\n  Warning: Running from npx cache'));
+      console.log(chalk.yellow('  For better reliability, install globally:'));
+      console.log(chalk.white('  npm install -g claude-code-notify-lite'));
+    }
+    console.log('');
   });
 
 program.parse();
