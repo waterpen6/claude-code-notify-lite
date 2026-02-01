@@ -50,17 +50,20 @@ function playWithAfplay(soundPath, volume) {
 function playWithPowershell(soundPath) {
   return new Promise((resolve) => {
     logger.info('Playing sound with PowerShell', { soundPath });
-    const escapedPath = soundPath.replace(/\\/g, '\\\\');
-    const psScript = [
-      'Add-Type -AssemblyName PresentationCore',
-      '$player = New-Object System.Windows.Media.MediaPlayer',
-      `$player.Open([System.Uri]"${escapedPath}")`,
-      'Start-Sleep -Milliseconds 300',
-      '$player.Play()',
-      'Start-Sleep -Seconds 3'
-    ].join('; ');
 
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
+    const psScript = `
+Add-Type -AssemblyName PresentationCore
+$player = New-Object System.Windows.Media.MediaPlayer
+$player.Open([System.Uri]'${soundPath.replace(/'/g, "''")}')
+Start-Sleep -Milliseconds 300
+$player.Play()
+Start-Sleep -Seconds 3
+$player.Close()
+`;
+
+    const base64Command = Buffer.from(psScript, 'utf16le').toString('base64');
+
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${base64Command}`,
       { encoding: 'utf8', windowsHide: true },
       (err) => {
         if (err) {
